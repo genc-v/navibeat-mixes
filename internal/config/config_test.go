@@ -372,3 +372,36 @@ func TestBudgetSecondsIsClampedUnderTheHostDeadline(t *testing.T) {
 		}
 	}
 }
+
+func TestCoverSettings(t *testing.T) {
+	d := Load(func(string) string { return "" })
+	if !d.Covers || d.CoverServer != DefaultCoverServer || d.CoversReady() {
+		t.Errorf("defaults: covers %v server %q ready %v", d.Covers, d.CoverServer, d.CoversReady())
+	}
+	vals := map[string]string{
+		"coverUsername": " admin ", "coverPassword": " secret ", "coverServerUrl": "http://127.0.0.1:4533/music/",
+	}
+	c := Load(func(k string) string { return vals[k] })
+	if !c.CoversReady() || c.CoverUser != "admin" || c.CoverPassword != " secret " || c.CoverServer != "http://127.0.0.1:4533/music" {
+		t.Errorf("loaded %+v", c)
+	}
+	vals["coversEnabled"] = "false"
+	if c := Load(func(k string) string { return vals[k] }); c.Covers || c.CoversReady() {
+		t.Error("coversEnabled=false left covers on")
+	}
+}
+
+func TestCoverColorsSeparatesTheOverrideFromTheDefault(t *testing.T) {
+	c := Load(func(k string) string {
+		if k == "colorDailyMix" {
+			return "#ff0000"
+		}
+		return ""
+	})
+	if o, b := c.CoverColors("dailymix"); o != "FF0000" || b != DefaultButtonColors["shuffle"] {
+		t.Errorf("dailymix: override %q base %q", o, b)
+	}
+	if o, b := c.CoverColors("morning"); o != "" || b != DefaultButtonColors["sunrise"] {
+		t.Errorf("morning: override %q base %q", o, b)
+	}
+}

@@ -21,9 +21,53 @@
   <a href="https://paypal.me/nenadjokicRS"><img height="34" src="https://img.shields.io/badge/PayPal-0070BA?style=flat-square&logo=paypal&logoColor=white" alt="PayPal"></a>
 </p>
 
+> **This is the covers fork.** Everything below is upstream NaviBeat Mixes,
+> plus one feature: every mix gets a Spotify style cover image, drawn from the
+> artists and albums inside it and uploaded to Navidrome, so **every** client
+> shows it. See [Covers](#covers-this-fork).
+
 A Navidrome plugin that builds playlists from how you actually listen: a mix
 for each part of the day, and a Rediscover mix of music you loved and have not
 played in months.
+
+## Covers (this fork)
+
+Right after a mix is written, the plugin reads it back, picks the artwork that
+represents it and draws a cover in the style of a streaming service's own
+generated playlists:
+
+| Mix | Cover |
+|---|---|
+| Daily Mix 1 to 3 | The anchor artist's photo, natural, duotone or black and white, with two neon tags: `Daily Mix` and `01` |
+| Artist Radio | The artist in a circle between two of their albums on the artwork's own colour, `RADIO` in the corner |
+| Genre Radio, decades | A colour graded photo of the mix's top artist with a bright band: `Blues Mix`, `2000s Mix` |
+| Weekly Discovery, New Music, Rediscover | Huge condensed type between slanted blocks on a dark ground |
+| On Repeat, Your Essentials, Loved, Wrapped | The top artist in duotone under a big retro title |
+| Morning, Afternoon, Evening, Night | The mix's albums packed into a sun or moon over a horizon, at the height of that time of day |
+
+The colour comes from the artwork itself unless you set one in the per-mix
+colour fields. A cover is only redrawn when what it shows changes (another
+artist at the centre, other albums), so an unchanged mix is never re-uploaded.
+When Navidrome has no artist photo yet, the cover uses album art and is redrawn
+on a later run once the photo has arrived.
+
+**Setup.** Navidrome only lets a logged in user set a playlist image (the
+Subsonic API and the plugin host services cannot), so the plugin needs a login:
+in Navidrome, open the plugin's settings, and under **Covers** fill in the
+username and password of an admin account, or of the account that owns the
+mixes. Saving reloads the plugin and the covers appear within a minute. The
+login never leaves your server: the upload goes to Navidrome itself on
+`127.0.0.1`, which is the only address besides navibeat.app the plugin is
+allowed to reach. If Navidrome listens on another port or has a BaseURL, change
+**Navidrome address** to match.
+
+If you also use the NaviBeat app, set **How NaviBeat draws these playlists** to
+`mosaic` so it shows these covers instead of its own.
+
+Fonts are embedded (Archivo Black, Anton, Shrikhand, DM Serif Display, all SIL
+Open Font License, see `internal/cover/fonts`). To look at the designs without a
+server, `go run ./dev/coverpreview -art DIR -out DIR` renders every layout from
+a folder of `artist_*.jpg` and `album_*.jpg` files.
 
 It creates ordinary playlists through the Subsonic API, so they appear in
 **every** client you use. The Navidrome web UI, Symfonium, Amperfy, play:Sub,

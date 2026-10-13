@@ -30,6 +30,8 @@ type Client struct {
 	// it), which was a third of the nightly run's Subsonic calls and part of
 	// why the run overran the host's deadline. nil means not fetched yet.
 	playlists []Playlist
+	// raw is the binary twin of call, for getCoverArt. nil until WithRaw.
+	raw RawCaller
 }
 
 // New returns a client that acts as the given user. Every Subsonic call needs
@@ -152,6 +154,8 @@ type Playlist struct {
 	Comment   string `json:"comment"`
 	Owner     string `json:"owner"`
 	SongCount int    `json:"songCount"`
+	// Entry is only filled by getPlaylist, never by getPlaylists.
+	Entry []PlaylistEntry `json:"entry,omitempty"`
 }
 
 func (c *Client) do(endpoint string, params url.Values) (*envelope, error) {

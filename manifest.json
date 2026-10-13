@@ -1,10 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/navidrome/navidrome/refs/heads/master/plugins/manifest-schema.json",
-  "name": "NaviBeat Mixes",
-  "author": "Nenad Jokic",
-  "version": "0.9.17",
-  "description": "Listening-aware playlists: time-of-day mixes, Rediscover, and Wrapped recaps. Now also decides how NaviBeat draws them.",
-  "website": "https://navibeat.app",
+  "name": "NaviBeat Mixes (covers)",
+  "author": "Nenad Jokic, covers fork by genc-v",
+  "version": "0.9.17-covers.1",
+  "description": "Listening-aware playlists: time-of-day mixes, Rediscover, and Wrapped recaps, each with a Spotify style cover image drawn from its own artists and albums and shown in every client.",
+  "website": "https://github.com/genc-v/navibeat-mixes",
   "permissions": {
     "scheduler": {
       "reason": "Required to refresh your mixes on a daily schedule."
@@ -19,9 +19,12 @@
       "reason": "Required to remember when you listen to what, which is what makes the mixes personal. Stays on your server."
     },
     "http": {
-      "reason": "ONLY used if you switch on Wrapped sharing, which is off by default. Sends counts and top artist names to navibeat.app to generate a shareable link. Never a play log, never anything identifying your server.",
+      "reason": "Two uses. Covers: uploads each mix's cover image to this Navidrome itself, on loopback (127.0.0.1), the only way to set a playlist image. Wrapped sharing, ONLY if you switch it on (off by default): sends counts and top artist names to navibeat.app to generate a shareable link. Never a play log, never anything identifying your server.",
       "requiredHosts": [
-        "navibeat.app"
+        "navibeat.app",
+        "127.0.0.1",
+        "::1",
+        "localhost"
       ]
     }
   },
@@ -225,7 +228,7 @@
             "mosaic"
           ],
           "default": "cover",
-          "description": "Only NaviBeat reads this; other clients are unaffected. \"cover\" is NaviBeat's own generated artwork, \"button\" is a compact row of buttons with an icon instead of artwork, \"mosaic\" leaves the server's usual 2x2 album grid alone."
+          "description": "Only NaviBeat reads this; other clients are unaffected. \"cover\" is NaviBeat's own generated artwork, \"button\" is a compact row of buttons with an icon instead of artwork, \"mosaic\" leaves the server's usual 2x2 album grid alone. With covers on, choose \"mosaic\" so NaviBeat shows the uploaded covers too."
         },
         "iconMorning": {
           "type": "string",
@@ -661,6 +664,29 @@
           "title": "Colour: Wrapped",
           "default": "",
           "description": "Six hex digits, for example F2A65A. Leave empty for the built-in colour."
+        },
+        "coversEnabled": {
+          "type": "boolean",
+          "title": "Draw Spotify style covers",
+          "default": true,
+          "description": "Gives every mix its own cover image (Daily Mix tags, radio circles, genre bands, posters) built from the artists and albums inside it, and uploads it to Navidrome so EVERY client shows it. Needs the login below."
+        },
+        "coverUsername": {
+          "type": "string",
+          "title": "Navidrome username for uploading covers",
+          "default": "",
+          "description": "An admin account, or the account that owns the mixes. Navidrome only lets a logged in user set a playlist image, so the plugin logs in with this to upload the covers. Stays on your server."
+        },
+        "coverPassword": {
+          "type": "string",
+          "title": "Password for that account",
+          "default": ""
+        },
+        "coverServerUrl": {
+          "type": "string",
+          "title": "Navidrome address, as seen from inside Navidrome",
+          "default": "http://127.0.0.1:4533",
+          "description": "Leave as is unless Navidrome listens on another port, or has a BaseURL (then add it, e.g. http://127.0.0.1:4533/music). Only loopback addresses are allowed."
         }
       }
     },
@@ -822,6 +848,31 @@
             {
               "type": "Control",
               "scope": "#/properties/wrappedSharing"
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "label": "Covers",
+          "elements": [
+            {
+              "type": "Control",
+              "scope": "#/properties/coversEnabled"
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/coverUsername"
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/coverPassword",
+              "options": {
+                "format": "password"
+              }
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/coverServerUrl"
             }
           ]
         },

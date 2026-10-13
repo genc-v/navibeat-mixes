@@ -122,6 +122,24 @@ type Config struct {
 	// floor exists because a budget shorter than one Subsonic page on a
 	// slow server would continue forever and finish nothing.
 	BudgetSeconds int
+	// Covers turns on the Spotify style cover images (internal/cover). They
+	// are uploaded to Navidrome, so every client shows them, which takes a
+	// Navidrome login: CoverUser must be an admin, or own the playlists.
+	Covers        bool
+	CoverServer   string
+	CoverUser     string
+	CoverPassword string
+}
+
+// DefaultCoverServer is Navidrome's own address as seen from inside it. The
+// plugin runs in the Navidrome process, so loopback always reaches it, and
+// loopback is all the manifest's http permission allows besides navibeat.app.
+const DefaultCoverServer = "http://127.0.0.1:4533"
+
+// CoversReady reports whether covers are on AND there is a login to upload
+// them with. Without one there is nothing the plugin can do with a cover.
+func (c Config) CoversReady() bool {
+	return c.Covers && c.CoverUser != "" && c.CoverPassword != ""
 }
 
 // Budget limits, in seconds. MaxBudgetSeconds leaves five seconds under the
@@ -200,6 +218,16 @@ func (c Config) ButtonFor(key string) (icon, color string) {
 	return icon, color
 }
 
+// CoverColors is the colour a cover of this family starts from: override is
+// the owner's own colour for it ("" when none, and then the artwork decides),
+// base is the built-in family colour the artwork falls back to.
+func (c Config) CoverColors(key string) (override, base string) {
+	key = strings.ToLower(strings.TrimSpace(key))
+	override = normaliseHex(c.ButtonColors[key])
+	_, base = Config{}.ButtonFor(key)
+	return override, base
+}
+
 // normaliseHex accepts what a person actually types into a colour field and
 // returns six uppercase hex digits, or "" when it cannot. A leading '#' is the
 // commonest input and the one thing the wire format does NOT allow, so
@@ -256,6 +284,8 @@ func Defaults() Config {
 		ButtonColors:  map[string]string{},
 		NewMusicOrder: "added",
 		BudgetSeconds: int(resume.DefaultLimit / time.Second),
+		Covers:        true,
+		CoverServer:   DefaultCoverServer,
 	}
 }
 
@@ -457,6 +487,18 @@ func Load(get Getter) Config {
 		}
 		c.BudgetSeconds = n
 	}
+	// Covers. On unless switched off explicitly: they do nothing until a
+	// login is filled in, so the switch only matters once someone has
+	// decided to give the plugin one.
+	if v := strings.TrimSpace(get("coversEnabled")); v != "" {
+		c.Covers = strings.EqualFold(v, "true")
+	}
+	if v := strings.TrimSpace(get("coverServerUrl")); v != "" {
+		c.CoverServer = strings.TrimRight(v, "/")
+	}
+	c.CoverUser = strings.TrimSpace(get("coverUsername"))
+	// Not trimmed: a password may legitimately start or end with a space.
+	c.CoverPassword = get("coverPassword")
 	// Per-family button overrides, read through the same three shapes as the
 	// names above.
 	icons := &slotGroup{get: get, group: "icon"}

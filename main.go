@@ -308,6 +308,8 @@ func generateAll() error {
 	if !ok {
 		return nil
 	}
+	beginCovers(cfg)
+	defer endCovers()
 	// Every path out of here is a path that RETURNED, which is the whole
 	// meaning of the mark. A killed call runs no deferred function, so the
 	// mark it leaves behind is exactly the evidence the next call reads.
@@ -418,7 +420,7 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 		return true, nil
 	}
 
-	client := library.New(host.SubsonicAPICall, username)
+	client := library.New(host.SubsonicAPICall, username).WithRaw(host.SubsonicAPICallRaw)
 
 	// The release-date list is fetched only when New Music is enabled and set
 	// to rank on it: it is the one consumer, and it costs up to albumPages
@@ -491,26 +493,19 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 	state := loadState(username)
 	now := time.Now()
 
-	// Every mix is described in one place, so adding one is a line here rather
-	// than a new branch. Name and slot are FIXED per entry: nothing that varies
-	// with the content ever reaches a playlist name, which is what stops the
-	// library filling with orphans as rankings shift.
-	type entry struct {
-		key   string
-		name  string
-		slot  string
-		human string
-		kind  string
-		sel   mixes.Selection
-	}
 	var plan []entry
 
-	add := func(key, name, slot, human, kind string, sel mixes.Selection) {
+	// about is add for a mix built around one artist, genre or decade: the
+	// subject only travels to the cover, never into the playlist's name.
+	about := func(subject, key, name, slot, human, kind string, sel mixes.Selection) {
 		if !cfg.MixEnabled(key) {
 			return
 		}
 		sel.Slot = mixes.Slot(slot)
-		plan = append(plan, entry{key, cfg.Prefix + name, slot, human, kind, sel})
+		plan = append(plan, entry{key, cfg.Prefix + name, slot, human, kind, subject, sel})
+	}
+	add := func(key, name, slot, human, kind string, sel mixes.Selection) {
+		about("", key, name, slot, human, kind, sel)
 	}
 
 	add("rediscover", cfg.SlotNames["rediscover"], "rediscover", "", "rediscover",
@@ -560,7 +555,7 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 	// Same floor and same reason as the artist pool below: a genre that cannot
 	// fill a mix must not be given a number it will then fail to use.
 	for i, g := range mixes.Rotate(mixes.TopGenresOwning(tracks, 12, minMixSize, cfg.MaxPerArtist), week, 3) {
-		add("genreradio", "Genre Radio "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.GenreRadio, i+1),
+		about(g, "genreradio", "Genre Radio "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.GenreRadio, i+1),
 			"NaviBeat Mixes: "+g+", one of the genres you play most. A different genre each week.", "genreradio",
 			mixes.BuildForGenre(tracks, g, cfg.MixSize, cfg.MaxPerArtist))
 	}
@@ -572,12 +567,12 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 	// pool of exactly 20 and their weekly rotation does not move.
 	artists := mixes.Rotate(mixes.TopArtistsOwning(tracks, 20, minMixSize), week, 5)
 	for i, a := range artists {
-		add("artistradio", "Artist Radio "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.ArtistRadio, i+1),
+		about(a, "artistradio", "Artist Radio "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.ArtistRadio, i+1),
 			"NaviBeat Mixes: everything you have by "+a+". A different artist each week.", "artistradio",
 			mixes.BuildForArtist(tracks, a, cfg.MixSize))
 	}
 	for i := 0; i < 3 && i < len(artists); i++ {
-		add("dailymix", "Daily Mix "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.DailyMix, i+1),
+		about(artists[i], "dailymix", "Daily Mix "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.DailyMix, i+1),
 			"NaviBeat Mixes: built around "+artists[i]+" and what sits near it. Rotates weekly.", "dailymix",
 			mixes.BuildDailyMix(tracks, artists, i, cfg.MixSize, cfg.MaxPerArtist))
 	}
@@ -585,7 +580,7 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 	// cannot fill a mix must not take a rotation slot it will then leave empty.
 	for _, d := range mixes.Rotate(mixes.TopDecadesOwning(tracks, 6, minMixSize, cfg.MaxPerArtist), week, 2) {
 		label := strconv.Itoa(d) + "s"
-		add("decade", label, "decade-"+strconv.Itoa(d),
+		about(label, "decade", label, "decade-"+strconv.Itoa(d),
 			"NaviBeat Mixes: your "+label+", ranked by what you actually play. Rotates weekly.", "decade",
 			mixes.BuildForDecade(tracks, d, cfg.MixSize, cfg.MaxPerArtist))
 	}
@@ -597,7 +592,7 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 		})
 		sel.Slot = mixes.Slot(mixes.WrappedSlot(year))
 		plan = append(plan, entry{"wrapped", cfg.Prefix + mixes.WrappedName(year), mixes.WrappedSlot(year),
-			"NaviBeat Mixes: your most played, since the plugin was installed. Grows through the year.", "wrapped", sel})
+			"NaviBeat Mixes: your most played, since the plugin was installed. Grows through the year.", "wrapped", "", sel})
 	}
 
 	affinity := state.Affinity()
@@ -655,12 +650,15 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 		// The retry cannot spin. MarkUserDone below runs whatever happens, so
 		// the day still ends, and every slot that succeeds drops out of the
 		// next pass, so successive passes get shorter rather than longer.
-		outcome := writeNamed(client, cfg, e.name, e.sel, human, e.kind, now, username)
+		outcome, playlistID := writeNamed(client, cfg, e.name, e.sel, human, e.kind, now, username)
 		if outcome != writeFailed {
 			ledger.MarkSlotDone(username, e.slot)
 		}
 		if outcome == writeOK {
 			written++
+			// The cover is part of the same step: it is drawn from the tracks
+			// just written, and the budget counts it with the write.
+			ensureCover(client, cfg, e, playlistID, username)
 		}
 		// One playlist is one step: four or five Subsonic calls, and on a
 		// slow server the yardstick for whether another one fits.
@@ -677,6 +675,23 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 	return true, nil
 }
 
+// entry is one mix in a user's plan. Every mix is described in one place, so
+// adding one is a line in generateForUser rather than a new branch. Name and
+// slot are FIXED per entry: nothing that varies with the content ever
+// reaches a playlist name, which is what stops the library filling with
+// orphans as rankings shift.
+type entry struct {
+	key   string
+	name  string
+	slot  string
+	human string
+	kind  string
+	// subject is the artist, genre or decade a numbered mix is built around,
+	// for its cover ("Blues Mix", the artist in the middle of a radio).
+	subject string
+	sel     mixes.Selection
+}
+
 // writeMix creates or updates one playlist. A mix that selected nothing is
 // left alone rather than emptied: a user who opens a playlist they liked
 // yesterday and finds it blank has lost something, and an empty playlist
@@ -687,7 +702,7 @@ func writeMix(client *library.Client, cfg config.Config, sel mixes.Selection, no
 		return
 	}
 
-	writeNamed(client, cfg, cfg.PlaylistName(string(sel.Slot)), sel, describe(cfg, sel), kindFor(sel.Slot), now, username)
+	_, _ = writeNamed(client, cfg, cfg.PlaylistName(string(sel.Slot)), sel, describe(cfg, sel), kindFor(sel.Slot), now, username)
 }
 
 // publishStyle writes the presentation style onto the control playlist, and is
@@ -762,21 +777,21 @@ const (
 // numbered mix came through here and this branch said nothing at all. One line
 // naming the playlist and its count against the threshold is what turns a
 // missing number into something a person can read off a log.
-func writeNamed(client *library.Client, cfg config.Config, name string, sel mixes.Selection, human, kind string, now time.Time, username string) writeOutcome {
+func writeNamed(client *library.Client, cfg config.Config, name string, sel mixes.Selection, human, kind string, now time.Time, username string) (writeOutcome, string) {
 	if len(sel.TrackIDs) < minMixSize {
 		logf("user %s: %s has %d tracks, under the %d a mix needs, so it was left alone",
 			username, name, len(sel.TrackIDs), minMixSize)
-		return writeTooSmall
+		return writeTooSmall, ""
 	}
 	id, err := client.EnsurePlaylist(name)
 	if err != nil {
 		logf("user %s: %v", username, err)
-		return writeFailed
+		return writeFailed, ""
 	}
 
 	if err := client.ReplaceTracks(id, sel.TrackIDs); err != nil {
 		logf("user %s: writing tracks: %v", username, err)
-		return writeFailed
+		return writeFailed, id
 	}
 
 	comment := protocol.Format(human, protocol.Meta{
@@ -831,7 +846,7 @@ func writeNamed(client *library.Client, cfg config.Config, name string, sel mixe
 		// a description, which costs more than the missing line is worth.
 		logf("user %s: writing description: %v", username, err)
 	}
-	return writeOK
+	return writeOK, id
 }
 
 func kindFor(slot mixes.Slot) string {
@@ -1090,6 +1105,8 @@ func regenerateUserNow(cfg config.Config, username string) error {
 		return nil
 	}
 	defer releaseWatch(watch, bite, day)
+	beginCovers(cfg)
+	defer endCovers()
 	finished, err := generateForUser(cfg, username, ledger, budget, bite, watch)
 	saveLedger(ledger)
 	if !finished {
