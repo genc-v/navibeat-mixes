@@ -300,7 +300,7 @@ func armWatch(watch *resume.Watch, phase, username string) {
 // a step like the last one (see resume.Budget).
 func generateAll() error {
 	cfg := config.Load(func(key string) string { v, _ := pdk.GetConfig(key); return v })
-	budget := resume.StartBudget(time.Duration(cfg.BudgetSeconds)*time.Second, time.Now)
+	budget := resume.StartBudget(time.Duration(cfg.BudgetSeconds)*time.Second, wallNow)
 	day := resume.DayOf(time.Now())
 	ledger := loadLedger(day)
 
@@ -495,17 +495,22 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 
 	var plan []entry
 
-	// about is add for a mix built around one artist, genre or decade: the
-	// subject only travels to the cover, never into the playlist's name.
-	about := func(subject, key, name, slot, human, kind string, sel mixes.Selection) {
+	// about is add for a mix built around one artist, genre or decade, which
+	// is NAMED after it ("Muse Mix", "Blues Mix"). `fixed` is the name the
+	// slot had before this fork named mixes after their subject, kept so a
+	// playlist that lost its machine line is still found and renamed rather
+	// than duplicated. The playlist is found by its slot either way; see
+	// library.EnsureMix for why a name that rotates weekly is safe.
+	about := func(subject, fixed, key, name, slot, human, kind string, sel mixes.Selection) {
 		if !cfg.MixEnabled(key) {
 			return
 		}
 		sel.Slot = mixes.Slot(slot)
-		plan = append(plan, entry{key, cfg.Prefix + name, slot, human, kind, subject, sel})
+		legacy := []string{fixed, legacyPrefix + fixed}
+		plan = append(plan, entry{key, cfg.Prefix + name, slot, human, kind, subject, legacy, sel})
 	}
 	add := func(key, name, slot, human, kind string, sel mixes.Selection) {
-		about("", key, name, slot, human, kind, sel)
+		about("", name, key, name, slot, human, kind, sel)
 	}
 
 	add("rediscover", cfg.SlotNames["rediscover"], "rediscover", "", "rediscover",
@@ -555,7 +560,7 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 	// Same floor and same reason as the artist pool below: a genre that cannot
 	// fill a mix must not be given a number it will then fail to use.
 	for i, g := range mixes.Rotate(mixes.TopGenresOwning(tracks, 12, minMixSize, cfg.MaxPerArtist), week, 3) {
-		about(g, "genreradio", "Genre Radio "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.GenreRadio, i+1),
+		about(g, "Genre Radio "+strconv.Itoa(i+1), "genreradio", g+" Mix", mixes.NumberedSlot(mixes.GenreRadio, i+1),
 			"NaviBeat Mixes: "+g+", one of the genres you play most. A different genre each week.", "genreradio",
 			mixes.BuildForGenre(tracks, g, cfg.MixSize, cfg.MaxPerArtist))
 	}
@@ -567,12 +572,12 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 	// pool of exactly 20 and their weekly rotation does not move.
 	artists := mixes.Rotate(mixes.TopArtistsOwning(tracks, 20, minMixSize), week, 5)
 	for i, a := range artists {
-		about(a, "artistradio", "Artist Radio "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.ArtistRadio, i+1),
+		about(a, "Artist Radio "+strconv.Itoa(i+1), "artistradio", a+" Radio", mixes.NumberedSlot(mixes.ArtistRadio, i+1),
 			"NaviBeat Mixes: everything you have by "+a+". A different artist each week.", "artistradio",
 			mixes.BuildForArtist(tracks, a, cfg.MixSize))
 	}
 	for i := 0; i < 3 && i < len(artists); i++ {
-		about(artists[i], "dailymix", "Daily Mix "+strconv.Itoa(i+1), mixes.NumberedSlot(mixes.DailyMix, i+1),
+		about(artists[i], "Daily Mix "+strconv.Itoa(i+1), "dailymix", artists[i]+" Mix", mixes.NumberedSlot(mixes.DailyMix, i+1),
 			"NaviBeat Mixes: built around "+artists[i]+" and what sits near it. Rotates weekly.", "dailymix",
 			mixes.BuildDailyMix(tracks, artists, i, cfg.MixSize, cfg.MaxPerArtist))
 	}
@@ -580,7 +585,7 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 	// cannot fill a mix must not take a rotation slot it will then leave empty.
 	for _, d := range mixes.Rotate(mixes.TopDecadesOwning(tracks, 6, minMixSize, cfg.MaxPerArtist), week, 2) {
 		label := strconv.Itoa(d) + "s"
-		about(label, "decade", label, "decade-"+strconv.Itoa(d),
+		about(label, label, "decade", label+" Mix", "decade-"+strconv.Itoa(d),
 			"NaviBeat Mixes: your "+label+", ranked by what you actually play. Rotates weekly.", "decade",
 			mixes.BuildForDecade(tracks, d, cfg.MixSize, cfg.MaxPerArtist))
 	}
@@ -592,7 +597,8 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 		})
 		sel.Slot = mixes.Slot(mixes.WrappedSlot(year))
 		plan = append(plan, entry{"wrapped", cfg.Prefix + mixes.WrappedName(year), mixes.WrappedSlot(year),
-			"NaviBeat Mixes: your most played, since the plugin was installed. Grows through the year.", "wrapped", "", sel})
+			"NaviBeat Mixes: your most played, since the plugin was installed. Grows through the year.", "wrapped", "",
+			[]string{legacyPrefix + mixes.WrappedName(year)}, sel})
 	}
 
 	affinity := state.Affinity()
@@ -650,7 +656,7 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 		// The retry cannot spin. MarkUserDone below runs whatever happens, so
 		// the day still ends, and every slot that succeeds drops out of the
 		// next pass, so successive passes get shorter rather than longer.
-		outcome, playlistID := writeNamed(client, cfg, e.name, e.sel, human, e.kind, now, username)
+		outcome, playlistID := writeNamed(client, cfg, e.name, e.sel, human, e.kind, now, username, e.legacy...)
 		if outcome != writeFailed {
 			ledger.MarkSlotDone(username, e.slot)
 		}
@@ -676,10 +682,13 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 }
 
 // entry is one mix in a user's plan. Every mix is described in one place, so
-// adding one is a line in generateForUser rather than a new branch. Name and
-// slot are FIXED per entry: nothing that varies with the content ever
-// reaches a playlist name, which is what stops the library filling with
-// orphans as rankings shift.
+// adding one is a line in generateForUser rather than a new branch.
+//
+// The SLOT is fixed per entry and the NAME is not: upstream kept names fixed
+// ("Daily Mix 1") because it found playlists by name, so a name that moved
+// with the content would have left orphans behind as rankings shifted. This
+// fork names a mix after what it is built around ("Muse Mix") and finds the
+// playlist by its slot instead (library.EnsureMix), renaming it in place.
 type entry struct {
 	key   string
 	name  string
@@ -689,8 +698,15 @@ type entry struct {
 	// subject is the artist, genre or decade a numbered mix is built around,
 	// for its cover ("Blues Mix", the artist in the middle of a radio).
 	subject string
-	sel     mixes.Selection
+	// legacy are names this slot was written under before; see about().
+	legacy []string
+	sel    mixes.Selection
 }
+
+// legacyPrefix is upstream's default name prefix, the orange circle this
+// fork no longer puts in front of every mix. Names carrying it are found and
+// renamed rather than left behind.
+const legacyPrefix = "\U0001F7E0 "
 
 // writeMix creates or updates one playlist. A mix that selected nothing is
 // left alone rather than emptied: a user who opens a playlist they liked
@@ -777,13 +793,13 @@ const (
 // numbered mix came through here and this branch said nothing at all. One line
 // naming the playlist and its count against the threshold is what turns a
 // missing number into something a person can read off a log.
-func writeNamed(client *library.Client, cfg config.Config, name string, sel mixes.Selection, human, kind string, now time.Time, username string) (writeOutcome, string) {
+func writeNamed(client *library.Client, cfg config.Config, name string, sel mixes.Selection, human, kind string, now time.Time, username string, legacy ...string) (writeOutcome, string) {
 	if len(sel.TrackIDs) < minMixSize {
 		logf("user %s: %s has %d tracks, under the %d a mix needs, so it was left alone",
 			username, name, len(sel.TrackIDs), minMixSize)
 		return writeTooSmall, ""
 	}
-	id, err := client.EnsurePlaylist(name)
+	id, err := client.EnsureMix(string(sel.Slot), name, legacy...)
 	if err != nil {
 		logf("user %s: %v", username, err)
 		return writeFailed, ""
@@ -947,6 +963,22 @@ func saveState(username string, s *collector.State) {
 	}
 }
 
+// wallNow is time.Now without its monotonic reading, so durations are
+// measured on the wall clock.
+//
+// ⛔ THIS IS WHAT MAKES THE BUDGET WORK AT ALL. Navidrome builds the plugin's
+// wazero module with WithSysWalltime() and NOT WithSysNanotime()
+// (plugins/manager_plugin.go in 0.64.2), and wazero's default nanotime is a
+// fake that advances one millisecond per READ, not with time. Go's t.Sub uses
+// the monotonic reading whenever both times carry one, so every duration the
+// plugin measured was "how many times did I look at the clock": a call that
+// ran for 25 real seconds measured well under one, the budget never ran out,
+// and the host killed the call at 30 seconds. Seen on a real server
+// (2026-10-13) once covers made each mix take a few real seconds: the decade
+// mixes, last in the plan, were never reached. Round(0) strips the monotonic
+// reading, and the wall clock IS real.
+func wallNow() time.Time { return time.Now().Round(0) }
+
 func logf(format string, args ...any) {
 	msg := format
 	for _, a := range args {
@@ -1097,7 +1129,7 @@ func regenerateUserNow(cfg config.Config, username string) error {
 	// A re-roll is a request for a fresh look at the library, so the pool
 	// parked by an earlier call today goes too.
 	deletePool(username)
-	budget := resume.StartBudget(time.Duration(cfg.BudgetSeconds)*time.Second, time.Now)
+	budget := resume.StartBudget(time.Duration(cfg.BudgetSeconds)*time.Second, wallNow)
 	// A re-roll runs the same user pass and dies the same death on a server
 	// that cannot serve it, so it reads and leaves the same mark.
 	watch, bite, ok := takeBite(day)

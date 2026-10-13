@@ -260,7 +260,10 @@ func normaliseHex(raw string) string {
 // Defaults returns the configuration used when nothing is set.
 func Defaults() Config {
 	return Config{
-		Prefix:               "\U0001F7E0 ", // large orange circle, the NaviBeat brand colour
+		// No prefix: the mixes carry their own names ("Muse Mix") and do not
+		// need an emoji to group them. Upstream's orange circle is one setting
+		// away for anyone who wants it back.
+		Prefix:               "",
 		MixSize:              30,
 		MaxPerArtist:         3,
 		RediscoverMonths:     6,

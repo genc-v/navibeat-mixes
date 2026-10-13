@@ -11,7 +11,7 @@ import (
 // RenderVersion goes into every signature. Bump it whenever a layout changes
 // how it looks, and every cover is redrawn on the next run; leave it alone
 // and an unchanged mix is never re-uploaded.
-const RenderVersion = "1"
+const RenderVersion = "2"
 
 // Mix is what the generator knows about one playlist when it asks for a
 // cover, in the words its plan already uses.
@@ -92,9 +92,10 @@ func PlanFor(m Mix, tracks []Track) Plan {
 
 	switch m.Kind {
 	case "dailymix":
-		p.Layout, p.Title = LayoutDaily, "Daily Mix"
+		// Named after its artist ("Muse Mix"), no number: the number is
+		// only the slot, and says nothing to the person looking at it.
+		p.Layout, p.Title = LayoutDaily, or(name, "Daily Mix")
 		if n > 0 {
-			p.Tag = twoDigits(n)
 			p.Variant = n - 1
 		}
 		p.Artist = artistArt(topArtist(tracks, subject))
@@ -111,7 +112,10 @@ func PlanFor(m Mix, tracks []Track) Plan {
 		p.Artist = artistArt(top)
 		p.Albums = albumArts(tracks, "", 1)
 	case "decade":
-		p.Layout, p.Title = LayoutBand, name+" Mix"
+		p.Layout, p.Title = LayoutBand, name
+		if subject != "" {
+			p.Title = subject + " Mix"
+		}
 		p.Artist = artistArt(top)
 		p.Albums = albumArts(tracks, "", 1)
 	case "onrepeat", "essentials", "loved", "wrapped":

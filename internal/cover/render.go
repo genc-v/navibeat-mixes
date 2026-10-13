@@ -220,6 +220,10 @@ func renderDaily(dst *image.RGBA, s Spec, accent color.RGBA) {
 		text(dst, numFace, s.Tag, float64(numBox.Min.X)+padX, bottom-padY*1.15, numTrack, ink, 0)
 		// Room left for the name is whatever the number did not take.
 		nameFace, nameW = shrinkToFit(heavy, name, float64(numBox.Min.X)-edge-S*0.03-2*padX, int(S*0.07), int(S*0.045))
+	} else {
+		// A name alone gets a bigger tag, and the whole width for a long one
+		// ("Red Hot Chili Peppers Mix").
+		nameFace, nameW = shrinkToFit(heavy, name, S-2*edge-2*padX, int(S*0.085), int(S*0.045))
 	}
 	nameBox := image.Rect(int(edge), int(bottom-capHeight(nameFace)-2*padY), int(edge+nameW+2*padX), int(bottom))
 	fillRect(dst, nameBox, tag)
@@ -330,10 +334,10 @@ func renderPoster(dst *image.RGBA, s Spec, accent color.RGBA) {
 	rng := newRand(uint32(s.Variant)*2654435761 + 17)
 	type area struct{ x0, y0, x1, y1, w0, w1, h0, h1 float64 }
 	areas := []area{
-		{0.08, -0.1, 0.3, -0.04, 0.3, 0.42, 0.13, 0.18},  // top left, clear of the dot
-		{0.62, -0.1, 0.8, 0.0, 0.3, 0.42, 0.12, 0.18},    // top right
-		{-0.14, 0.86, 0.1, 0.94, 0.3, 0.42, 0.12, 0.18},  // bottom left
-		{0.64, 0.88, 0.84, 0.96, 0.3, 0.42, 0.12, 0.18},  // bottom right
+		{0.08, -0.1, 0.3, -0.04, 0.3, 0.42, 0.13, 0.18}, // top left, clear of the dot
+		{0.62, -0.1, 0.8, 0.0, 0.3, 0.42, 0.12, 0.18},   // top right
+		{-0.14, 0.86, 0.1, 0.94, 0.3, 0.42, 0.12, 0.18}, // bottom left
+		{0.64, 0.88, 0.84, 0.96, 0.3, 0.42, 0.12, 0.18}, // bottom right
 	}
 	for i, e := range areas {
 		x := (e.x0 + (e.x1-e.x0)*rng.float()) * S

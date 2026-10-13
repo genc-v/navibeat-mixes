@@ -93,7 +93,7 @@ func ensureCover(client *library.Client, cfg config.Config, e entry, playlistID,
 	if covers == nil || covers.stopped != nil {
 		return
 	}
-	start := time.Now()
+	start := wallNow()
 	entries, err := client.PlaylistEntries(playlistID)
 	if err != nil {
 		logf("user %s: cover for %s: reading the playlist back: %v", username, e.name, err)
@@ -156,7 +156,7 @@ func ensureCover(client *library.Client, cfg config.Config, e entry, playlistID,
 		logf("user %s: cover for %s uploaded but not remembered: %v", username, e.name, err)
 	}
 	logf("user %s: cover for %s uploaded (%s, %d KB, %v)", username, e.name, string(plan.Layout),
-		len(jpg)/1024, time.Since(start).Round(time.Millisecond))
+		len(jpg)/1024, wallNow().Sub(start).Round(time.Millisecond))
 }
 
 // fetchArt reads one artwork id, or nil when the server has none: an error,

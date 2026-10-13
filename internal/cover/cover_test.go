@@ -83,10 +83,10 @@ func TestPlanForPicksTheLayoutAndWordsOfEachMix(t *testing.T) {
 		layout                  Layout
 		title, tag, artist, alb string
 	}{
-		{Mix{Kind: "dailymix", Slot: "dailymix-2", Name: "Daily Mix 2", Subject: "Muse"}, LayoutDaily, "Daily Mix", "02", "ar-ar1", "al-alA"},
+		{Mix{Kind: "dailymix", Slot: "dailymix-2", Name: "Muse Mix", Subject: "Muse"}, LayoutDaily, "Muse Mix", "", "ar-ar1", "al-alA"},
 		{Mix{Kind: "artistradio", Slot: "artistradio-1", Name: "Artist Radio 1", Subject: "Muse"}, LayoutRadio, "Muse", "RADIO", "ar-ar1", "al-alA"},
 		{Mix{Kind: "genreradio", Slot: "genreradio-1", Name: "Genre Radio 1", Subject: "Blues"}, LayoutBand, "Blues Mix", "", "ar-ar2", "al-alC"},
-		{Mix{Kind: "decade", Slot: "decade-2000", Name: "2000s", Subject: "2000s"}, LayoutBand, "2000s Mix", "", "ar-ar2", "al-alC"},
+		{Mix{Kind: "decade", Slot: "decade-2000", Name: "2000s Mix", Subject: "2000s"}, LayoutBand, "2000s Mix", "", "ar-ar2", "al-alC"},
 		{Mix{Kind: "onrepeat", Slot: "onrepeat", Name: "On Repeat"}, LayoutEditorial, "On Repeat", "", "ar-ar2", "al-alC"},
 		{Mix{Kind: "discovery", Slot: "discovery", Name: "Weekly Discovery"}, LayoutPoster, "Weekly Discovery", "", "", "al-alC"},
 		{Mix{Kind: "timeofday", Slot: "morning", Name: "Jutro"}, LayoutHorizon, "Jutro", "", "", "al-alC"},

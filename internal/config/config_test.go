@@ -324,7 +324,7 @@ func TestAnUnconfiguredServerStillGetsTheBuiltInButtons(t *testing.T) {
 			t.Errorf("%s icon = %q, want %q", family, icon, want)
 		}
 	}
-	if c.PlaylistName("morning") != "\U0001F7E0 Morning" {
+	if c.PlaylistName("morning") != "Morning" {
 		t.Errorf("PlaylistName(morning) = %q", c.PlaylistName("morning"))
 	}
 }

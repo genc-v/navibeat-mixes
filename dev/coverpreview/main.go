@@ -70,21 +70,22 @@ func main() {
 	}
 	var jobs []job
 	for i := 1; i <= 3; i++ {
+		a := pick(artists, i-1)
 		jobs = append(jobs, job{fmt.Sprintf("dailymix-%d", i), cover.Mix{Kind: "dailymix", Slot: fmt.Sprintf("dailymix-%d", i),
-			Name: fmt.Sprintf("Daily Mix %d", i), Subject: pick(artists, i-1), Base: base("dailymix")}, tracks(i - 1)})
+			Name: display(a) + " Mix", Subject: a, Base: base("dailymix")}, tracks(i - 1)})
 	}
 	for i := 1; i <= 2; i++ {
 		a := pick(artists, i+2)
 		jobs = append(jobs, job{fmt.Sprintf("artistradio-%d", i), cover.Mix{Kind: "artistradio", Slot: fmt.Sprintf("artistradio-%d", i),
-			Name: fmt.Sprintf("Artist Radio %d", i), Subject: display(a), Base: base("artistradio")}, rename(tracks(i+2), a, display(a))})
+			Name: display(a) + " Radio", Subject: display(a), Base: base("artistradio")}, rename(tracks(i+2), a, display(a))})
 	}
 	for i, g := range []string{"Blues", "Jazz"} {
 		jobs = append(jobs, job{"genreradio-" + strings.ToLower(g), cover.Mix{Kind: "genreradio", Slot: fmt.Sprintf("genreradio-%d", i+1),
-			Name: fmt.Sprintf("Genre Radio %d", i+1), Subject: g, Base: base("genreradio")}, tracks(i + 4)})
+			Name: g + " Mix", Subject: g, Base: base("genreradio")}, tracks(i + 4)})
 	}
 	for i, d := range []string{"2000s", "1970s"} {
 		jobs = append(jobs, job{"decade-" + d, cover.Mix{Kind: "decade", Slot: "decade-" + strings.TrimSuffix(d, "s"),
-			Name: d, Base: base("decade")}, tracks(i + 6)})
+			Name: d + " Mix", Subject: d, Base: base("decade")}, tracks(i + 6)})
 	}
 	for i, m := range []struct{ kind, name string }{
 		{"discovery", "Weekly Discovery"}, {"newmusic", "New Music"}, {"rediscover", "Rediscover"},

@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/navidrome/navidrome/refs/heads/master/plugins/manifest-schema.json",
   "name": "NaviBeat Mixes (covers)",
   "author": "Nenad Jokic, covers fork by genc-v",
-  "version": "0.9.17-covers.1",
+  "version": "0.9.17-covers.2",
   "description": "Listening-aware playlists: time-of-day mixes, Rediscover, and Wrapped recaps, each with a Spotify style cover image drawn from its own artists and albums and shown in every client.",
   "website": "https://github.com/genc-v/navibeat-mixes",
   "permissions": {
@@ -35,8 +35,8 @@
         "prefix": {
           "type": "string",
           "title": "Playlist name prefix",
-          "default": "🟠 ",
-          "description": "Goes in front of every playlist name, so the mixes group together in your list."
+          "default": "",
+          "description": "Goes in front of every playlist name. Empty by default: the mixes are named after what is in them (\"Muse Mix\", \"Blues Mix\"). Put an emoji here, like upstream's orange circle, to group them in your list."
         },
         "onlyForUsers": {
           "type": "string",

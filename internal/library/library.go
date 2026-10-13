@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -336,6 +337,66 @@ func (c *Client) Playlists() ([]Playlist, error) {
 	return env.Response.Playlists.Playlist, nil
 }
 
+// EnsureMix finds this user's playlist for one mix slot, makes sure it is
+// called `name`, and returns its id, creating it when there is none.
+//
+// The playlist is found by its SLOT, read off the machine line in its
+// description, and only then by name. That is what lets a mix be named after
+// what is in it ("Muse Mix", "Blues Mix") even though what is in it rotates
+// weekly: next week the same playlist is renamed "Blur Mix" in place, keeping
+// its id, its cover and its place in every client, instead of a new playlist
+// being created beside an orphaned old one. It also migrates playlists
+// written under an older naming scheme, whose machine lines carry the same
+// slots.
+//
+// `legacy` are names this slot was written under before, for a playlist that
+// lost its machine line. A playlist whose machine line names a DIFFERENT slot
+// is never taken, whatever it is called: two slots can briefly want the same
+// name while their subjects rotate.
+func (c *Client) EnsureMix(slot, name string, legacy ...string) (string, error) {
+	if c.playlists == nil {
+		existing, err := c.Playlists()
+		if err != nil {
+			return "", err
+		}
+		c.playlists = existing
+	}
+	for i, p := range c.playlists {
+		if p.Owner != c.user {
+			continue
+		}
+		if meta, ok := protocol.Parse(p.Comment); ok && meta.Kind != "control" && meta.Slot == slot {
+			return c.rename(i, name)
+		}
+	}
+	for i, p := range c.playlists {
+		if p.Owner != c.user {
+			continue
+		}
+		if meta, ok := protocol.Parse(p.Comment); ok && meta.Slot != slot {
+			continue
+		}
+		if p.Name == name || slices.Contains(legacy, p.Name) {
+			return c.rename(i, name)
+		}
+	}
+	// Created outright, NOT through EnsurePlaylist: that finds by name, and
+	// the name may belong to another slot's playlist this week.
+	return c.create(name)
+}
+
+// rename gives the i-th cached playlist `name` when it does not have it yet.
+func (c *Client) rename(i int, name string) (string, error) {
+	p := &c.playlists[i]
+	if p.Name != name {
+		if _, err := c.do("updatePlaylist", url.Values{"playlistId": {p.ID}, "name": {name}}); err != nil {
+			return "", fmt.Errorf("renaming %q to %q: %w", p.Name, name, err)
+		}
+		p.Name = name
+	}
+	return p.ID, nil
+}
+
 // EnsurePlaylist finds this user's playlist by name, or creates it.
 //
 // THE OWNER CHECK IS LOAD BEARING ON A MULTI-USER SERVER, and its absence was
@@ -359,6 +420,11 @@ func (c *Client) EnsurePlaylist(name string) (string, error) {
 			return p.ID, nil
 		}
 	}
+	return c.create(name)
+}
+
+// create makes a new private playlist for this user and caches it.
+func (c *Client) create(name string) (string, error) {
 	// Created non-public: these are personal mixes, and a server with five
 	// accounts should not show everyone five copies of "Morning".
 	env, err := c.do("createPlaylist", url.Values{"name": {name}})
