@@ -120,7 +120,10 @@ type envelope struct {
 		Playlists struct {
 			Playlist []Playlist `json:"playlist"`
 		} `json:"playlists"`
-		Playlist Playlist `json:"playlist"`
+		Playlist      Playlist `json:"playlist"`
+		SimilarSongs2 struct {
+			Song []song `json:"song"`
+		} `json:"similarSongs2"`
 	} `json:"subsonic-response"`
 }
 

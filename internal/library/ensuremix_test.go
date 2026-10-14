@@ -8,7 +8,7 @@ import (
 
 // fakeLists answers getPlaylists from a fixed list and records every
 // rename and create, which is all EnsureMix may do.
-func fakeLists(t *testing.T, lists string, calls *[]string) Caller {
+func fakeLists(lists string, calls *[]string) Caller {
 	return func(uri string) (string, error) {
 		*calls = append(*calls, uri)
 		switch {
@@ -43,7 +43,7 @@ const lists = `[
 
 func TestEnsureMixRenamesTheSlotsOwnPlaylistInPlace(t *testing.T) {
 	var calls []string
-	c := New(fakeLists(t, lists, &calls), "me")
+	c := New(fakeLists(lists, &calls), "me")
 	id, err := c.EnsureMix("dailymix-1", "Muse Mix", "Daily Mix 1", "\U0001F7E0 Daily Mix 1")
 	if err != nil || id != "p1" {
 		t.Fatalf("got %q, %v; want the slot's own playlist p1, never someone else's", id, err)
@@ -55,7 +55,7 @@ func TestEnsureMixRenamesTheSlotsOwnPlaylistInPlace(t *testing.T) {
 
 func TestEnsureMixNeverTakesAnotherSlotsPlaylist(t *testing.T) {
 	var calls []string
-	c := New(fakeLists(t, lists, &calls), "me")
+	c := New(fakeLists(lists, &calls), "me")
 	// "Blur Mix" belongs to dailymix-2: dailymix-3 wanting the same name this
 	// week must get a playlist of its own.
 	id, err := c.EnsureMix("dailymix-3", "Blur Mix", "Daily Mix 3")
@@ -66,7 +66,7 @@ func TestEnsureMixNeverTakesAnotherSlotsPlaylist(t *testing.T) {
 
 func TestEnsureMixAdoptsALegacyNameWithoutAMachineLine(t *testing.T) {
 	var calls []string
-	c := New(fakeLists(t, lists, &calls), "me")
+	c := New(fakeLists(lists, &calls), "me")
 	id, err := c.EnsureMix("artistradio-1", "Muse Radio", "Artist Radio 1", "\U0001F7E0 Artist Radio 1")
 	if err != nil || id != "p3" {
 		t.Fatalf("got %q, %v; want p3 adopted by its old name", id, err)

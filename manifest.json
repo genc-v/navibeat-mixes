@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/navidrome/navidrome/refs/heads/master/plugins/manifest-schema.json",
   "name": "NaviBeat Mixes (covers)",
   "author": "Nenad Jokic, covers fork by genc-v",
-  "version": "0.9.17-covers.2",
+  "version": "0.9.17-covers.3",
   "description": "Listening-aware playlists: time-of-day mixes, Rediscover, and Wrapped recaps, each with a Spotify style cover image drawn from its own artists and albums and shown in every client.",
   "website": "https://github.com/genc-v/navibeat-mixes",
   "permissions": {
@@ -687,6 +687,20 @@
           "title": "Navidrome address, as seen from inside Navidrome",
           "default": "http://127.0.0.1:4533",
           "description": "Leave as is unless Navidrome listens on another port, or has a BaseURL (then add it, e.g. http://127.0.0.1:4533/music). Only loopback addresses are allowed."
+        },
+        "enableNewToYou": {
+          "type": "boolean",
+          "title": "New to You (songs you have never played)",
+          "default": true,
+          "description": "Songs in your library you have never played, close to what you play lately: Navidrome's similar songs for your recent artists, plus unplayed songs in your recent genres. New every week."
+        },
+        "latelyDays": {
+          "type": "integer",
+          "title": "What \"lately\" means, in days",
+          "default": 21,
+          "minimum": 0,
+          "maximum": 365,
+          "description": "The Daily Mixes and the genre mixes follow what you have played in this many days, and New to You stays close to it. 0 ranks the Daily Mixes and genre mixes on all-time plays instead, like upstream. Artist Radio always rotates through your all-time favourites."
         }
       }
     },
@@ -773,6 +787,10 @@
             },
             {
               "type": "Control",
+              "scope": "#/properties/enableNewToYou"
+            },
+            {
+              "type": "Control",
               "scope": "#/properties/enableGenreRadio"
             },
             {
@@ -819,6 +837,10 @@
           "type": "Group",
           "label": "Tuning",
           "elements": [
+            {
+              "type": "Control",
+              "scope": "#/properties/latelyDays"
+            },
             {
               "type": "Control",
               "scope": "#/properties/rediscoverMonths"

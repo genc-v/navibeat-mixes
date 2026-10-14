@@ -45,6 +45,18 @@ generated playlists:
 | On Repeat, Your Essentials, Loved, Wrapped | The top artist in duotone under a big retro title |
 | Morning, Afternoon, Evening, Night | The mix's albums packed into a sun or moon over a horizon, at the height of that time of day |
 
+**Lately and New to You (this fork).** The Daily Mixes and the genre mixes
+follow what you have played in the last three weeks (the **What "lately"
+means** setting; 0 goes back to upstream's all-time ranking), topped up from
+the all-time ranking when recent listening cannot fill three. Artist Radio
+keeps rotating through your all-time favourites. **New to You** is songs in
+your library you have never played, close to what you play lately: Navidrome's
+own similar songs (the engine behind its Instant Mix, fed by Last.fm, Deezer
+or AudioMuse-AI) for your three most recent artists, then unplayed songs in
+your recent genres, with artists you have never played lifted to the top. It
+turns over weekly. Mixes are named after what they are built around ("Muse
+Mix", "Blues Mix") and renamed in place when that changes.
+
 The colour comes from the artwork itself unless you set one in the per-mix
 colour fields. A cover is only redrawn when what it shows changes (another
 artist at the centre, other albums), so an unchanged mix is never re-uploaded.

@@ -492,6 +492,37 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 
 	state := loadState(username)
 	now := time.Now()
+	week := mixes.WeekIndex(now)
+	// "Lately": the window the Daily Mixes, the genre mixes and New to You
+	// read the user's current taste from. 0 keeps upstream's all-time ranking
+	// for the first two; New to You always needs a window, so it falls back to
+	// the default one.
+	lately := time.Duration(cfg.LatelyDays) * 24 * time.Hour
+	discoverWindow := lately
+	if discoverWindow == 0 {
+		discoverWindow = config.DefaultLatelyDays * 24 * time.Hour
+	}
+
+	// New to You asks Navidrome for songs like the ones played lately. That
+	// goes through its agents (Last.fm, Deezer, AudioMuse-AI), so it is asked
+	// once per user per day and kept for the continuation calls, and only at
+	// the START of a call: a lookup begun with the budget nearly spent could
+	// carry the call past the host's deadline.
+	var similar []mixes.Track
+	if cfg.MixEnabled("newtoyou") {
+		var cached bool
+		if similar, cached = loadSimilar(username, ledger.Day); !cached {
+			if budget.Spent() {
+				if !loadedComplete {
+					parkPool(username, pool)
+				}
+				ledger.Advance(username, progress())
+				return false, nil
+			}
+			similar = fetchSimilar(client, cfg, tracks, now, discoverWindow, username)
+			saveSimilar(username, ledger.Day, similar)
+		}
+	}
 
 	var plan []entry
 
@@ -549,19 +580,40 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 		"NaviBeat Mixes: music you own, played once or twice, and then forgot.", "discovery",
 		mixes.BuildDiscovery(tracks, now, 90*24*time.Hour, cfg.MixSize, cfg.MaxPerArtist))
 
-	// Numbered mixes. The NUMBER is the identity and the subject goes in the
-	// description, so the name never changes when the ranking does.
-	// Weekly rotation. The pool is deliberately DEEPER than the window: with
-	// 20 artists showing 5 at a time, a listener meets a different five every
-	// week and the whole library comes round eventually, instead of staring at
-	// the same top five forever. The name never moves, only what is inside it.
-	week := mixes.WeekIndex(now)
+	add("newtoyou", "New to You", "newtoyou",
+		"NaviBeat Mixes: songs in your library you have never played, close to what you play lately. New every week.", "newtoyou",
+		mixes.BuildNewToYou(tracks, similar, mixes.NewToYouOptions{
+			Now: now, Window: discoverWindow, Week: week, Size: cfg.MixSize, MaxPerArtist: cfg.MaxPerArtist,
+		}))
+
+	// Numbered mixes. The slot number is the identity; the name follows the
+	// subject and is renamed in place when it changes (library.EnsureMix).
+	// Artist Radio rotates weekly through the all-time favourites. The pool
+	// is deliberately DEEPER than the window: with 20 artists showing 5 at a
+	// time, a listener meets a different five every week and the whole
+	// library comes round eventually, instead of staring at the same top five
+	// forever. The Daily Mixes and the genre mixes follow what is played
+	// LATELY instead (cfg.LatelyDays), topped up from the rotation when recent
+	// listening cannot fill all three.
 
 	// Same floor and same reason as the artist pool below: a genre that cannot
 	// fill a mix must not be given a number it will then fail to use.
-	for i, g := range mixes.Rotate(mixes.TopGenresOwning(tracks, 12, minMixSize, cfg.MaxPerArtist), week, 3) {
+	genres := mixes.Rotate(mixes.TopGenresOwning(tracks, 12, minMixSize, cfg.MaxPerArtist), week, 3)
+	latelyGenres := map[string]bool{}
+	if lately > 0 {
+		recent := mixes.TopGenresLately(tracks, now, lately, 3, minMixSize, cfg.MaxPerArtist)
+		for _, g := range recent {
+			latelyGenres[g] = true
+		}
+		genres = mixes.FillFrom(recent, genres, 3)
+	}
+	for i, g := range genres {
+		why := ", one of the genres you play most. A different genre each week."
+		if latelyGenres[g] {
+			why = ", one of the genres you play most lately."
+		}
 		about(g, "Genre Radio "+strconv.Itoa(i+1), "genreradio", g+" Mix", mixes.NumberedSlot(mixes.GenreRadio, i+1),
-			"NaviBeat Mixes: "+g+", one of the genres you play most. A different genre each week.", "genreradio",
+			"NaviBeat Mixes: "+g+why, "genreradio",
 			mixes.BuildForGenre(tracks, g, cfg.MixSize, cfg.MaxPerArtist))
 	}
 	// The 20 are the artists that can actually FILL an Artist Radio: an artist
@@ -576,10 +628,23 @@ func generateForUser(cfg config.Config, username string, ledger *resume.Ledger, 
 			"NaviBeat Mixes: everything you have by "+a+". A different artist each week.", "artistradio",
 			mixes.BuildForArtist(tracks, a, cfg.MixSize))
 	}
-	for i := 0; i < 3 && i < len(artists); i++ {
-		about(artists[i], "Daily Mix "+strconv.Itoa(i+1), "dailymix", artists[i]+" Mix", mixes.NumberedSlot(mixes.DailyMix, i+1),
-			"NaviBeat Mixes: built around "+artists[i]+" and what sits near it. Rotates weekly.", "dailymix",
-			mixes.BuildDailyMix(tracks, artists, i, cfg.MixSize, cfg.MaxPerArtist))
+	anchors := artists
+	latelyArtists := map[string]bool{}
+	if lately > 0 {
+		recent := mixes.TopArtistsLately(tracks, now, lately, 3, minMixSize)
+		for _, a := range recent {
+			latelyArtists[a] = true
+		}
+		anchors = mixes.FillFrom(recent, artists, 3)
+	}
+	for i := 0; i < 3 && i < len(anchors); i++ {
+		why := " and what sits near it. Rotates weekly."
+		if latelyArtists[anchors[i]] {
+			why = ", which you have been playing lately, and what sits near it."
+		}
+		about(anchors[i], "Daily Mix "+strconv.Itoa(i+1), "dailymix", anchors[i]+" Mix", mixes.NumberedSlot(mixes.DailyMix, i+1),
+			"NaviBeat Mixes: built around "+anchors[i]+why, "dailymix",
+			mixes.BuildDailyMix(tracks, anchors, i, cfg.MixSize, cfg.MaxPerArtist))
 	}
 	// Same floor and same reason as the genre and artist pools: a decade that
 	// cannot fill a mix must not take a rotation slot it will then leave empty.

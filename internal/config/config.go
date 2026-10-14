@@ -129,7 +129,15 @@ type Config struct {
 	CoverServer   string
 	CoverUser     string
 	CoverPassword string
+	// LatelyDays is the window the Daily Mixes, the genre mixes and New to
+	// You read "what you play lately" from. 0 ranks the first two on all-time
+	// plays, the way upstream does.
+	LatelyDays int
 }
+
+// DefaultLatelyDays is three weeks: long enough that a quiet week does not
+// empty it, short enough that last month's obsession has moved on.
+const DefaultLatelyDays = 21
 
 // DefaultCoverServer is Navidrome's own address as seen from inside it. The
 // plugin runs in the Navidrome process, so loopback always reaches it, and
@@ -169,6 +177,7 @@ var DefaultButtonIcons = map[string]string{
 	"onrepeat":    "repeat",
 	"essentials":  "star",
 	"discovery":   "compass",
+	"newtoyou":    "sparkles",
 	"genreradio":  "radio",
 	"artistradio": "radio",
 	"dailymix":    "shuffle",
@@ -289,6 +298,7 @@ func Defaults() Config {
 		BudgetSeconds: int(resume.DefaultLimit / time.Second),
 		Covers:        true,
 		CoverServer:   DefaultCoverServer,
+		LatelyDays:    DefaultLatelyDays,
 	}
 }
 
@@ -452,7 +462,7 @@ func Load(get Getter) Config {
 		{"onrepeat", "enableOnRepeat"}, {"essentials", "enableEssentials"},
 		{"discovery", "enableDiscovery"}, {"genreradio", "enableGenreRadio"},
 		{"artistradio", "enableArtistRadio"}, {"dailymix", "enableDailyMix"},
-		{"decade", "enableDecade"},
+		{"decade", "enableDecade"}, {"newtoyou", "enableNewToYou"},
 	} {
 		v := strings.TrimSpace(get(m.field))
 		if v == "" {
@@ -498,6 +508,13 @@ func Load(get Getter) Config {
 	}
 	if v := strings.TrimSpace(get("coverServerUrl")); v != "" {
 		c.CoverServer = strings.TrimRight(v, "/")
+	}
+	// Zero is a real answer here (all-time, like upstream), so it is read
+	// with Atoi rather than positiveInt.
+	if v := strings.TrimSpace(get("latelyDays")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 && n <= 365 {
+			c.LatelyDays = n
+		}
 	}
 	c.CoverUser = strings.TrimSpace(get("coverUsername"))
 	// Not trimmed: a password may legitimately start or end with a space.

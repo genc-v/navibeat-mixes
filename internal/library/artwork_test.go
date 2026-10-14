@@ -41,3 +41,21 @@ func TestCoverArtRefusesAnErrorDocument(t *testing.T) {
 		t.Errorf("an error document gave %v", err)
 	}
 }
+
+func TestSimilarSongsDecodesTheSongs(t *testing.T) {
+	c := New(func(uri string) (string, error) {
+		if !strings.HasPrefix(uri, "getSimilarSongs2?") || !strings.Contains(uri, "count=40") {
+			t.Fatalf("unexpected call %s", uri)
+		}
+		return `{"subsonic-response":{"status":"ok","similarSongs2":{"song":[
+			{"id":"s1","artist":"Royal Blood","genre":"Rock","playCount":0},
+			{"id":"s2","artist":"Muse","genres":[{"name":"Rock"}],"playCount":4,"played":"2026-10-13T10:00:00Z"}]}}}`, nil
+	}, "admin")
+	got, err := c.SimilarSongs("t1", 40)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("%v %v", got, err)
+	}
+	if got[0].PlayCount != 0 || !got[0].LastPlayed.IsZero() || got[1].LastPlayed.IsZero() || got[1].Genres[0] != "Rock" {
+		t.Errorf("decoded %+v", got)
+	}
+}

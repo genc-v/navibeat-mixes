@@ -405,3 +405,29 @@ func TestCoverColorsSeparatesTheOverrideFromTheDefault(t *testing.T) {
 		t.Errorf("morning: override %q base %q", o, b)
 	}
 }
+
+func TestLatelyDaysAndNewToYou(t *testing.T) {
+	d := Load(func(string) string { return "" })
+	if d.LatelyDays != DefaultLatelyDays || !d.MixEnabled("newtoyou") {
+		t.Errorf("defaults: lately %d, new to you %v", d.LatelyDays, d.MixEnabled("newtoyou"))
+	}
+	for in, want := range map[string]int{"0": 0, "7": 7, "-3": DefaultLatelyDays, "x": DefaultLatelyDays, "999": DefaultLatelyDays} {
+		if got := Load(func(k string) string {
+			if k == "latelyDays" {
+				return in
+			}
+			return ""
+		}).LatelyDays; got != want {
+			t.Errorf("latelyDays %q gave %d, want %d", in, got, want)
+		}
+	}
+	off := Load(func(k string) string {
+		if k == "enableNewToYou" {
+			return "false"
+		}
+		return ""
+	})
+	if off.MixEnabled("newtoyou") {
+		t.Error("enableNewToYou=false left it on")
+	}
+}
